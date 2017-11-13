@@ -1,0 +1,9 @@
+/.cache/
+/.coverage
+/.eggs/
+/.python-version
+/bobnet_sensors.egg-info/
+/htmlcov/
+/secret/
+
+__pycache__/

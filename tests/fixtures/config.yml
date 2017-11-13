@@ -1,0 +1,12 @@
+sensors:
+    name:
+        type: Blah
+        arg:  0
+
+iotcore:
+    region:      europe-west1
+    project_id:  blah
+    registry_id: blah
+    device_id:   blah01
+    private_key_path: ./tests/fixtures/private-key.pem
+    ca_certs_path: ./tests/fixtures/roots.pem
