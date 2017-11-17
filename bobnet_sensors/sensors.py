@@ -1,11 +1,14 @@
-import asyncio
 from abc import ABCMeta, abstractmethod
+import asyncio
+import logging
 import re
 
 try:
     from gpiozero import MCP3008
 except ImportError:
     MCP3008 = None  # dummy for unit testing
+
+logger = logging.getLogger(__name__)
 
 
 def parse_time(t):
@@ -60,6 +63,8 @@ class Sensor:
         self._name = name
         self._every = parse_time(every or '30s')
         self._device = device
+        logger.debug(
+            f'Created {self} values every {self.every}s from {self.device}')
 
     @property
     def name(self):
@@ -84,15 +89,22 @@ class Sensor:
             return (False, str(e))
 
     async def run(self, stop, values):
+        logger.debug(f'Starting {self}')
         while not stop.is_set():
-            await values.put({
+            value = {
                 'sensor': self.name,
                 'value': self.device.value,
-            })
+            }
+            await values.put(value)
+            logger.debug(f'Sent value {value}')
             try:
                 await asyncio.wait_for(stop.wait(), self.every)
             except asyncio.TimeoutError:
                 pass
+        logger.debug(f'Stopping {self}')
+
+    def __repr__(self):
+        return f'<Sensor name={self.name}>'
 
 
 class BaseDevice(metaclass=ABCMeta):
@@ -117,6 +129,9 @@ class MCP3008Device(BaseDevice):
     @property
     def value(self):
         return self._mcp3008.value
+
+    def __repr__(self):
+        return f'<MCP3008Device channel={self._channel}>'
 
 
 DEVICE_CLASSES = {
