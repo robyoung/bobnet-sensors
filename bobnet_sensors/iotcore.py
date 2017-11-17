@@ -1,12 +1,15 @@
-import json
+import asyncio
 import datetime
+import json
+import logging
 import os
-import threading
 import urllib.request
 
 import paho.mqtt.client as mqtt
 import jwt
 
+
+logger = logging.getLogger(__name__)
 
 GOOGLE_PKI_ROOTS = 'https://pki.google.com/roots.pem'
 GOOGLE_MQTT_BRIDGE_HOST = 'mqtt.googleapis.com'
@@ -65,9 +68,9 @@ class Connection:
         self.ca_certs_path = ca_certs_path
 
         self.connected = False
-        self.connect_event = threading.Event()
-        self.has_message_event = threading.Event()
-        self.new_message_event = threading.Event()
+        self.connect_event = asyncio.Event()
+        self.has_message_event = asyncio.Event()
+        self.new_message_event = asyncio.Event()
         self._client = self._setup_mqtt()
 
     def connect(self):
@@ -156,9 +159,43 @@ class IOTCoreClient:
         return self._client.new_message_event.is_set()
 
     @property
+    def new_config_event(self):
+        return self._client.new_message_event
+
+    @property
     def config(self):
         self._client.new_message_event.clear()
         return self._client.message
+
+    async def run_send(self, loop, stop, values):
+        while not stop.is_set():
+            values_task = asyncio.Task(values.get())
+            stop_task = asyncio.Task(stop.wait())
+
+            complete, pending = await asyncio.wait(
+                [values_task, stop_task],
+                loop=loop, return_when=asyncio.FIRST_COMPLETED)
+            task = complete.pop()
+
+            if task == values_task:
+                self.send(values_task.result())
+            else:
+                values_task.cancel()
+
+    async def run_config(self, loop, stop, target):
+        """Read config from IoT Core and send to target"""
+        while not stop.is_set():
+            # wait for either new config event or stop event
+            await asyncio.wait(
+                [stop.wait(), self._client.new_message_event.wait()],
+                loop=loop, return_when=asyncio.FIRST_COMPLETED)
+
+            # it may be the stop event so check
+            if not stop.is_set() and self._client.new_message_event.is_set():
+                ok, errors = target.update_config(self.config)
+                if not ok:
+                    # TODO @robyoung report back to iot-core
+                    print("Received errors")
 
 
 def load_iotcore(config):
