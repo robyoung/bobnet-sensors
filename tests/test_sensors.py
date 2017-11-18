@@ -9,6 +9,7 @@ from bobnet_sensors.sensors import (
 
 
 @pytest.mark.parametrize('t,result', [
+    ('0.1s', 0.1),
     ('10s', 10),
     ('10m', 10 * 60),
     ('10h', 10 * 60 * 60),
@@ -133,7 +134,7 @@ def test_sensor_run(loop):
 
     results = loop.run_until_complete(
         asyncio.gather(
-            sensor.run(stop, values),
+            sensor.run(loop, stop, values),
             test_task(stop, values),
             loop=loop
         )

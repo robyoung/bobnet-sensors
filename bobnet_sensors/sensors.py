@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def parse_time(t):
-    match = re.match(r'^(\d+)(s|m|h)$', t)
+    match = re.match(r'^(\d+(?:\.\d+)?)(s|m|h)$', t)
     if not match:
         raise ValueError(f'Invalid time format {t}')
     multipliers = {
@@ -21,7 +21,7 @@ def parse_time(t):
         'h': 60 * 60,
     }
 
-    return int(match.group(1)) * multipliers[match.group(2)]
+    return float(match.group(1)) * multipliers[match.group(2)]
 
 
 class Sensors:
@@ -88,7 +88,7 @@ class Sensor:
         except Exception as e:
             return (False, str(e))
 
-    async def run(self, stop, values):
+    async def run(self, loop, stop, values):
         logger.debug(f'Starting {self}')
         while not stop.is_set():
             value = {
@@ -139,5 +139,5 @@ DEVICE_CLASSES = {
 }
 
 
-def load_sensors(config):
+def load_sensors(loop, config):
     return Sensors.from_config(config)

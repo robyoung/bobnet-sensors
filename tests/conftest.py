@@ -4,7 +4,7 @@ from unittest import mock
 import pytest
 
 from bobnet_sensors import iotcore
-from bobnet_sensors.sensors import Sensors
+from bobnet_sensors.sensors import Sensors, Sensor
 
 
 @pytest.fixture(scope='session')
@@ -16,6 +16,11 @@ def private_key():
 @pytest.fixture
 def loop():
     return asyncio.new_event_loop()
+
+
+@pytest.fixture
+def stop(loop):
+    return asyncio.Event(loop=loop)
 
 
 @pytest.fixture
@@ -67,6 +72,7 @@ def iotcore_connection(loop, mock_mqtt, private_key):
         './tests/fixtures/roots.pem',
     )
 
+
 @pytest.fixture
 def mock_iotcore_conn(loop):
     mock_connection = mock.Mock()
@@ -92,11 +98,23 @@ def mock_sensor_set():
 
 
 @pytest.fixture
+def sensor_set():
+    result = {}
+    for i in range(1, 3):
+        mock_device = mock.Mock()
+        mock_device.value = f'device{i} value'
+        sensor = Sensor(f'sensor{i}', '10s', mock_device)
+        result[sensor.name] = sensor
+
+    return result
+
+
+@pytest.fixture
 def mock_mcp3008():
     with mock.patch('bobnet_sensors.sensors.MCP3008') as m:
         yield m
 
 
 @pytest.fixture
-def sensors(mock_sensor_set):
-    return Sensors(mock_sensor_set)
+def sensors(sensor_set):
+    return Sensors(sensor_set)

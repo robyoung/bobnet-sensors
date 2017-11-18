@@ -1,8 +1,14 @@
+import asyncio
 
-def run(iotcore, sensors):
-    for message in sensors.read():
-        iotcore.send(message)
 
-        # Keep it simple to start with
-        if iotcore.has_new_config:
-            sensors.update_config(iotcore.config)
+def run(loop, stop, iotcore, sensors):
+    values = asyncio.Queue(loop=loop)
+
+    sensor_tasks = [sensor.run(loop, stop, values) for sensor in sensors]
+    iotcore_tasks = [
+        iotcore.run_send(loop, stop, values),
+        iotcore.run_config(loop, stop, sensors),
+    ]
+    all_tasks = sensor_tasks + iotcore_tasks
+
+    loop.run_until_complete(asyncio.gather(*all_tasks, loop=loop))
