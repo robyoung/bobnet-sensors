@@ -1,4 +1,6 @@
 import argparse
+import asyncio
+import logging
 
 from .config import load_config
 from .iotcore import load_iotcore
@@ -10,15 +12,27 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Run a BobNet sensor')
     parser.add_argument('-c', '--config', dest='config')
+    parser.add_argument('-l', '--log-level',
+                        help='Log level',
+                        choices=['ERROR', 'WARNING', 'INFO', 'DEBUG'],
+                        dest='log_level', default='INFO')
 
     return parser.parse_args()
+
+
+def set_up_logging(log_level):
+    logging.basicConfig(
+        level=logging.getLevelName(log_level))
 
 
 def main():
     args = parse_args()
     c = load_config(args.config)
 
-    iotcore = load_iotcore(c)
-    sensors = load_sensors(c)
+    set_up_logging(args.log_level)
 
-    run(iotcore, sensors)
+    loop = asyncio.new_event_loop()
+    iotcore = load_iotcore(loop, c)
+    sensors = load_sensors(loop, c)
+
+    run(loop, iotcore, sensors)
