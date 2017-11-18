@@ -45,8 +45,6 @@ def create_jwt(project_id, private_key):
     return jwt.encode(token, private_key, algorithm='RS256')
 
 
-# TODO move as much out of the class as possible
-
 class Connection:
     @staticmethod
     def from_config(config):
@@ -109,22 +107,22 @@ class Connection:
         return client
 
     def on_connect(self, _client, _userdata, _flags, rc):
-        # TODO: logging
+        logger.info('on_connect event received')
         self.connected = True
         self.connect_event.set()
 
     def on_disconnect(self, _client, _userdata, rc):
+        logger.info('on_disconnect event received')
         self.connected = False
-        # TODO: logging
         self.connect_event.clear()
 
     def on_subscribe(self, _client, _userdata, _mid, granted_qos):
-        print('on_subscribe')
+        logger.info('on_subscribe event received')
         if granted_qos[0] == 128:
             raise RuntimeError('Subscription failed')
 
     def on_message(self, _client, _userdata, message):
-        # TODO: logging
+        logger.info('on_message event received')
         payload = message.payload.decode('utf8')
         if payload:
             payload = json.loads(payload)
@@ -186,16 +184,23 @@ class IOTCoreClient:
         """Read config from IoT Core and send to target"""
         while not stop.is_set():
             # wait for either new config event or stop event
+            stop_task = asyncio.Task(stop.wait())
+            message_event_task = asyncio.Task(
+                self._client.new_message_event.wait())
+
             await asyncio.wait(
-                [stop.wait(), self._client.new_message_event.wait()],
+                [stop_task, message_event_task],
                 loop=loop, return_when=asyncio.FIRST_COMPLETED)
 
             # it may be the stop event so check
-            if not stop.is_set() and self._client.new_message_event.is_set():
+            if not stop.is_set():
+                stop_task.cancel()
                 ok, errors = target.update_config(self.config)
                 if not ok:
                     # TODO @robyoung report back to iot-core
                     print("Received errors")
+            else:
+                message_event_task.cancel()
 
 
 def load_iotcore(config):
