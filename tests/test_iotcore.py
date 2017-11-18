@@ -95,9 +95,11 @@ def test_create_jwt(private_key):
     }
 
 
-def test_create_connection_from_config(mock_mqtt, valid_config, private_key):
+def test_create_connection_from_config(
+    loop, mock_mqtt, valid_config, private_key
+):
     # act
-    conn = iotcore.Connection.from_config(valid_config)
+    conn = iotcore.Connection.from_config(loop, valid_config)
 
     # assert
     assert conn.region == 'europe-west1'
@@ -105,14 +107,14 @@ def test_create_connection_from_config(mock_mqtt, valid_config, private_key):
 
 
 def test_create_connection_from_config_fails_on_missing_keys(
-    mock_mqtt, valid_config
+    loop, mock_mqtt, valid_config
 ):
     # arrange
     del valid_config['iotcore']['region']
 
     # act and assert
     with pytest.raises(KeyError):
-        iotcore.Connection.from_config(valid_config)
+        iotcore.Connection.from_config(loop, valid_config)
 
 
 def test_connection_connect(mock_mqtt_client, iotcore_connection):
@@ -214,17 +216,16 @@ def test_publish_message(mock_mqtt_client, iotcore_connection):
 
 
 @mock.patch('bobnet_sensors.iotcore.Connection')
-def test_load_iotcore(mock_Connection):
+def test_load_iotcore(mock_Connection, loop):
     # act
-    client = iotcore.load_iotcore({})
+    client = iotcore.load_iotcore(loop, {})
     client.send('message')
 
     # assert
     assert mock_Connection.from_config.return_value.connect.called
 
 
-def test_run_send_stop_no_value():
-    loop = asyncio.new_event_loop()
+def test_run_send_stop_no_value(loop):
     stop = asyncio.Event(loop=loop)
     values = asyncio.Queue(loop=loop)
 
@@ -246,8 +247,7 @@ def test_run_send_stop_no_value():
     assert not mock_client.publish.called
 
 
-def test_run_send_value_then_stop():
-    loop = asyncio.new_event_loop()
+def test_run_send_value_then_stop(loop):
     stop = asyncio.Event(loop=loop)
     values = asyncio.Queue(loop=loop)
 
@@ -271,8 +271,7 @@ def test_run_send_value_then_stop():
     mock_client.publish.assert_called_with('test value')
 
 
-def test_run_config_stop_no_config():
-    loop = asyncio.new_event_loop()
+def test_run_config_stop_no_config(loop):
     stop = asyncio.Event(loop=loop)
     target = mock.Mock()
 
@@ -294,16 +293,12 @@ def test_run_config_stop_no_config():
     assert not target.update_config.called
 
 
-def test_run_config_with_config_then_stop():
-    loop = asyncio.new_event_loop()
+def test_run_config_with_config_then_stop(loop, iotcore_client):
     stop = asyncio.Event(loop=loop)
     target = mock.Mock()
     target.update_config.return_value = (True, '')
 
-    mock_client = mock.Mock()
-    mock_client.new_message_event = asyncio.Event(loop=loop)
-    mock_client.message = 'test message'
-    client = iotcore.IOTCoreClient(mock_client)
+    iotcore_client._client.message = 'test message'
 
     async def test_task(stop, mock_client):
         mock_client.new_message_event.set()
@@ -312,8 +307,8 @@ def test_run_config_with_config_then_stop():
 
     loop.run_until_complete(
         asyncio.gather(
-            client.run_config(loop, stop, target),
-            test_task(stop, mock_client),
+            iotcore_client.run_config(loop, stop, target),
+            test_task(stop, iotcore_client._client),
             loop=loop
         )
     )

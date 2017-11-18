@@ -47,16 +47,17 @@ def create_jwt(project_id, private_key):
 
 class Connection:
     @staticmethod
-    def from_config(config):
+    def from_config(loop, config):
         iot = config['iotcore']
 
         return Connection(
+            loop,
             iot['region'], iot['project_id'],
             iot['registry_id'], iot['device_id'],
             load_private_key(iot),
             load_ca_certs(iot['ca_certs_path']))
 
-    def __init__(self, region, project_id, registry_id, device_id,
+    def __init__(self, loop, region, project_id, registry_id, device_id,
                  private_key, ca_certs_path):
         self.region = region
         self.project_id = project_id
@@ -66,9 +67,9 @@ class Connection:
         self.ca_certs_path = ca_certs_path
 
         self.connected = False
-        self.connect_event = asyncio.Event()
-        self.has_message_event = asyncio.Event()
-        self.new_message_event = asyncio.Event()
+        self.connect_event = asyncio.Event(loop=loop)
+        self.has_message_event = asyncio.Event(loop=loop)
+        self.new_message_event = asyncio.Event(loop=loop)
         self._client = self._setup_mqtt()
 
     def connect(self):
@@ -203,8 +204,8 @@ class IOTCoreClient:
                 message_event_task.cancel()
 
 
-def load_iotcore(config):
-    conn = Connection.from_config(config)
+def load_iotcore(loop, config):
+    conn = Connection.from_config(loop, config)
     conn.connect()
 
     return IOTCoreClient(conn)

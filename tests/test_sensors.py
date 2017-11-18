@@ -8,40 +8,6 @@ from bobnet_sensors.sensors import (
 )
 
 
-@pytest.fixture
-def mock_sensors():
-    mock_sensors = {}
-    for i in range(1, 3):
-        mock_sensor = mock.Mock()
-        mock_sensor.update_config.return_value = (True, '')
-        mock_sensors[f'sensor{i}'] = mock_sensor
-    return mock_sensors
-
-
-@pytest.fixture
-def mock_mcp3008():
-    with mock.patch('bobnet_sensors.sensors.MCP3008') as m:
-        yield m
-
-
-@pytest.fixture
-def sensors_config():
-    return {
-        'sensors': {
-            'temp': {
-                'device': 'MCP3008',
-                'every': '10s',
-                'channel': 0,
-            },
-            'light': {
-                'device': 'MCP3008',
-                'every': '30s',
-                'channel': 1,
-            }
-        }
-    }
-
-
 @pytest.mark.parametrize('t,result', [
     ('10s', 10),
     ('10m', 10 * 60),
@@ -56,8 +22,8 @@ def test_parse_time_failure_raises_value_error():
         parse_time('bad time')
 
 
-def test_update_config_success_on_all_sensors(mock_sensors):
-    sensors = Sensors(mock_sensors)
+def test_update_config_success_on_all_sensors(mock_sensor_set):
+    sensors = Sensors(mock_sensor_set)
 
     ok, errors = sensors.update_config({
         'sensors': {
@@ -70,8 +36,8 @@ def test_update_config_success_on_all_sensors(mock_sensors):
     assert not errors
 
 
-def test_update_config_for_unknown_sensor_gets_ignored(mock_sensors):
-    sensors = Sensors(mock_sensors)
+def test_update_config_for_unknown_sensor_gets_ignored(mock_sensor_set):
+    sensors = Sensors(mock_sensor_set)
 
     ok, errors = sensors.update_config({
         'sensors': {
@@ -83,9 +49,9 @@ def test_update_config_for_unknown_sensor_gets_ignored(mock_sensors):
     assert not errors
 
 
-def test_update_config_any_error_causes_error(mock_sensors):
-    mock_sensors['sensor1'].update_config.return_value = (False, 'bad')
-    sensors = Sensors(mock_sensors)
+def test_update_config_any_error_causes_error(mock_sensor_set):
+    mock_sensor_set['sensor1'].update_config.return_value = (False, 'bad')
+    sensors = Sensors(mock_sensor_set)
 
     ok, errors = sensors.update_config({
         'sensors': {
@@ -98,8 +64,8 @@ def test_update_config_any_error_causes_error(mock_sensors):
     assert errors == ['bad']
 
 
-def test_create_sensors_from_config(mock_mcp3008, sensors_config):
-    sensors = Sensors.from_config(sensors_config)
+def test_create_sensors_from_config(mock_mcp3008, valid_config):
+    sensors = Sensors.from_config(valid_config)
 
     sensors = list(sensors)
     assert len(sensors) == 2
@@ -154,8 +120,7 @@ def test_read_value_from_mcp3008(mock_mcp3008):
         mosi_pin=24, miso_pin=23, select_pin=25)
 
 
-def test_sensor_run():
-    loop = asyncio.new_event_loop()
+def test_sensor_run(loop):
     stop = asyncio.Event(loop=loop)
     values = asyncio.Queue(loop=loop)
 
