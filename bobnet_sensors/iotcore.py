@@ -167,8 +167,8 @@ class IOTCoreClient:
 
     async def run_send(self, loop, stop, values):
         while not stop.is_set():
-            values_task = asyncio.Task(values.get())
-            stop_task = asyncio.Task(stop.wait())
+            values_task = loop.create_task(values.get())
+            stop_task = loop.create_task(stop.wait())
 
             complete, pending = await asyncio.wait(
                 [values_task, stop_task],
@@ -184,8 +184,8 @@ class IOTCoreClient:
         """Read config from IoT Core and send to target"""
         while not stop.is_set():
             # wait for either new config event or stop event
-            stop_task = asyncio.Task(stop.wait())
-            message_event_task = asyncio.Task(
+            stop_task = loop.create_task(stop.wait())
+            message_event_task = loop.create_task(
                 self._client.new_message_event.wait())
 
             await asyncio.wait(
