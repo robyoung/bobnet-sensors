@@ -109,12 +109,16 @@ class Connection:
         return client
 
     def on_connect(self, _client, _userdata, _flags, rc):
-        logger.info('on_connect event received')
+        logger.info(
+            f'on_connect event received ' +
+            f'({_client}, {_userdata}, {_flags}, {rc})')
         self.connected = True
         self.connect_event.set()
 
     def on_disconnect(self, _client, _userdata, rc):
-        logger.info('on_disconnect event received')
+        logger.info(
+            'on_disconnect event received' +
+            f'({_client}, {_userdata}, {rc})')
         self.connected = False
         self.connect_event.clear()
 
