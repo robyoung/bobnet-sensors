@@ -26,6 +26,8 @@ setup(
         'paho-mqtt==1.3.1',
         'pyjwt==1.5.3',
         'cryptography==2.1.3',
+        'gpiozero==1.4.0',
+        'RPi.GPIO==0.6.3',
     ],
 
     setup_requires=setup_requires,
