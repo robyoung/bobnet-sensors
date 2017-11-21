@@ -50,6 +50,19 @@ def test_update_config_for_unknown_sensor_gets_ignored(mock_sensor_set):
     assert not errors
 
 
+@pytest.mark.parametrize('config', [
+    ({'foo': 'bar'},),
+    ({'sensors': 123},),
+])
+def test_update_config_invalid_config(mock_sensor_set, config):
+    sensors = Sensors(mock_sensor_set)
+
+    ok, errors = sensors.update_config(mock_sensor_set)
+
+    assert not ok
+    assert errors
+
+
 def test_update_config_any_error_causes_error(mock_sensor_set):
     mock_sensor_set['sensor1'].update_config.return_value = (False, 'bad')
     sensors = Sensors(mock_sensor_set)

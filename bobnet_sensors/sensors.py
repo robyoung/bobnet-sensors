@@ -42,11 +42,14 @@ class Sensors:
 
     def update_config(self, config):
         errors = []
-        for name, sensor_config in config['sensors'].items():
-            if name in self._sensors:
-                ok, message = self._sensors[name].update_config(sensor_config)
-                if not ok:
-                    errors.append(message)
+        try:
+            for name, sensor_config in config['sensors'].items():
+                if name in self._sensors:
+                    ok, message = self._sensors[name].update_config(sensor_config)
+                    if not ok:
+                        errors.append(message)
+        except Exception:
+            errors.append('Invalid config')
 
         return (not bool(errors), errors)
 
