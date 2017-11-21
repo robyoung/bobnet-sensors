@@ -32,7 +32,8 @@ def main():
     set_up_logging(args.log_level)
 
     loop = asyncio.new_event_loop()
+    stop = asyncio.Event(loop=loop)
     iotcore = load_iotcore(loop, c)
     sensors = load_sensors(loop, c)
 
-    run(loop, iotcore, sensors)
+    run(loop, stop, iotcore, sensors)
