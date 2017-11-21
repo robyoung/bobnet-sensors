@@ -117,20 +117,19 @@ def test_create_connection_from_config_fails_on_missing_keys(
         iotcore.Connection.from_config(loop, valid_config)
 
 
-def test_connection_connect(mock_mqtt_client, iotcore_connection):
+def test_connection_connect(loop, mock_mqtt_client, iotcore_connection):
     # arrange
     conn = iotcore_connection
-    mock_connect_event = mock.Mock()
-    mock_connect_event.wait.return_value = True
-    conn.connect_event = mock_connect_event
+    connect_event = asyncio.Event(loop=loop)
+    connect_event.set()
+    conn.connect_event = connect_event
 
     # act
-    conn.connect()
+    loop.run_until_complete(asyncio.gather(conn.connect(), loop=loop))
 
     # assert
     assert mock_mqtt_client.connect.called
     assert mock_mqtt_client.loop_start.called
-    assert mock_connect_event.wait.called
     mock_mqtt_client.subscribe.assert_called_with('/devices/test01/config',
                                                   qos=1)
 
@@ -217,12 +216,18 @@ def test_publish_message(mock_mqtt_client, iotcore_connection):
 
 @mock.patch('bobnet_sensors.iotcore.Connection')
 def test_load_iotcore(mock_Connection, loop):
+    # arrange
+    mock_connect = mock.Mock()
+    async def connect():
+        mock_connect()
+    mock_Connection.from_config.return_value.connect = connect
+
     # act
     client = iotcore.load_iotcore(loop, {})
     client.send('message')
 
     # assert
-    assert mock_Connection.from_config.return_value.connect.called
+    assert mock_connect.called
 
 
 def test_run_send_stop_no_value(loop):

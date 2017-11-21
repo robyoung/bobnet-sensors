@@ -70,13 +70,14 @@ class Connection:
         self.connect_event = asyncio.Event(loop=loop)
         self.has_message_event = asyncio.Event(loop=loop)
         self.new_message_event = asyncio.Event(loop=loop)
+        self._loop = loop
         self._client = self._setup_mqtt()
 
-    def connect(self):
+    async def connect(self):
         self._client.connect(GOOGLE_MQTT_BRIDGE_HOST, GOOGLE_MQTT_BRIDGE_PORT)
         self._client.loop_start()
 
-        self._wait_for_connection()
+        await self._wait_for_connection()
 
         self._client.subscribe(self.config_topic, qos=1)
 
@@ -141,8 +142,11 @@ class Connection:
             self.events_topic, json.dumps(message), qos=1
         )
 
-    def _wait_for_connection(self):
-        if not self.connect_event.wait(timeout=5):
+    async def _wait_for_connection(self):
+        try:
+            await asyncio.wait_for(
+                self.connect_event.wait(), 5, loop=self._loop)
+        except asyncio.TimeoutError:
             raise RuntimeError('Could not connect to MQTT bridge')
 
 
@@ -206,6 +210,6 @@ class IOTCoreClient:
 
 def load_iotcore(loop, config):
     conn = Connection.from_config(loop, config)
-    conn.connect()
+    loop.run_until_complete(asyncio.gather(conn.connect(), loop=loop))
 
     return IOTCoreClient(conn)

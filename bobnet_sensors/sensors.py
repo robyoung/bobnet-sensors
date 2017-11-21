@@ -98,7 +98,7 @@ class Sensor:
             await values.put(value)
             logger.debug(f'Sent value {value}')
             try:
-                await asyncio.wait_for(stop.wait(), self.every)
+                await asyncio.wait_for(stop.wait(), self.every, loop=loop)
             except asyncio.TimeoutError:
                 pass
         logger.debug(f'Stopping {self}')
