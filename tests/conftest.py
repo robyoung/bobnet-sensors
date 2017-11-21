@@ -109,9 +109,15 @@ def sensor_set():
     return result
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def mock_mcp3008():
     with mock.patch('bobnet_sensors.sensors.MCP3008') as m:
+        yield m
+
+
+@pytest.fixture(autouse=True)
+def mock_RPi():
+    with mock.patch('bobnet_sensors.sensors.RPi') as m:
         yield m
 
 

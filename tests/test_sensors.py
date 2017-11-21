@@ -111,11 +111,14 @@ def test_update_config_failure():
     assert error == 'bad thing'
 
 
-def test_read_value_from_mcp3008(mock_mcp3008):
+def test_read_value_from_mcp3008(mock_mcp3008, mock_RPi):
     mock_mcp3008.return_value.value = 'value'
+    mock_RPi.GPIO.BCM = 'bcm'
+
     device = MCP3008Device(1)
 
     assert device.value == 'value'
+    mock_RPi.GPIO.setmode.assert_called_with('bcm')
     mock_mcp3008.assert_called_with(
         channel=1, clock_pin=18,
         mosi_pin=24, miso_pin=23, select_pin=25)
