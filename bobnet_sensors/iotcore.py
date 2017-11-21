@@ -127,6 +127,7 @@ class Connection:
         logger.info('on_message event received')
         payload = message.payload.decode('utf8')
         if payload:
+            logger.debug(f'on_message payload {payload}')
             payload = json.loads(payload)
             self._message = payload  # only the most recent is relevant
             self.has_message_event.set()

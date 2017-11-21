@@ -85,6 +85,7 @@ class Sensor:
         return self._device
 
     def update_config(self, config):
+        logger.debug(f'update config on {self} with {config}')
         try:
             if config.get('every'):
                 self._every = parse_time(config['every'])
