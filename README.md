@@ -7,14 +7,13 @@ $ bobnet-sensors -c config.yml
 ```yaml
 sensors:
   temperature:
-    type:    MCP3008
+    device:  MCP3008
     channel: 0
+    every: 1s
   light:
-    type:    MCP3008
+    device:  MCP3008
     channel: 1
-  dust:
-    type: DustSensorDevice
-    pin:  14
+    every: 10s
 
 iotcore:
   region:      europe-west1
