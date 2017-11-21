@@ -22,7 +22,9 @@ def parse_args():
 
 def set_up_logging(log_level):
     logging.basicConfig(
-        level=logging.getLevelName(log_level))
+        level=logging.getLevelName(log_level),
+        format='%(asctime)s %(name)s %(levelname)s %(message)s'
+    )
 
 
 def main():
