@@ -6,6 +6,7 @@ import pytest
 import jwt
 
 from bobnet_sensors import iotcore
+from conftest import return_immediately
 
 
 @pytest.mark.parametrize('rc,error', [
@@ -134,7 +135,7 @@ def test_connection_connect(loop, mock_mqtt_client, iotcore_connection):
                                                   qos=1)
 
 
-def test_on_connect_event(mock_mqtt_client, iotcore_connection):
+def test_on_connect_event(iotcore_connection):
     # arrange
     conn = iotcore_connection
     conn.connect_event = mock.Mock()
@@ -143,7 +144,6 @@ def test_on_connect_event(mock_mqtt_client, iotcore_connection):
     conn.on_connect(None, None, None, None)
 
     # assert
-    assert mock_mqtt_client.on_connect == conn.on_connect
     assert conn.connected
     assert conn.connect_event.set.called
 
@@ -152,12 +152,15 @@ def test_on_disconnect_event(mock_mqtt_client, iotcore_connection):
     # arrange
     conn = iotcore_connection
     conn.connect_event = mock.Mock()
+    async def wait_for_other():
+        await asyncio.sleep(0.01)
+    conn._wait_for_connection = return_immediately
 
     # act
     conn.on_disconnect(None, None, None)
+    conn._loop.run_until_complete(asyncio.gather(wait_for_other(), loop=conn._loop))
 
     # assert
-    assert mock_mqtt_client.on_disconnect == conn.on_disconnect
     assert not conn.connected
     assert conn.connect_event.clear.called
 
@@ -201,7 +204,7 @@ def test_on_message_sets_no_message_if_no_payload(iotcore_connection):
     assert not conn.new_message_event.is_set()
 
 
-def test_publish_message(mock_mqtt_client, iotcore_connection):
+def test_publish_message(iotcore_connection):
     # arrange
     conn = iotcore_connection
 
@@ -209,7 +212,7 @@ def test_publish_message(mock_mqtt_client, iotcore_connection):
     conn.publish({'foo': 'bar'})
 
     # assert
-    mock_mqtt_client.publish.assert_called_once_with(
+    conn._client.publish.assert_called_once_with(
         '/devices/test01/events', '{"foo": "bar"}',
         qos=1)
 
@@ -262,6 +265,7 @@ def test_run_send_value_then_stop(loop):
         stop.set()
 
     mock_client = mock.Mock()
+    mock_client._wait_for_connection = return_immediately
 
     client = iotcore.IOTCoreClient(mock_client)
 

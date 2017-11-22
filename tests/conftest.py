@@ -7,6 +7,10 @@ from bobnet_sensors import iotcore
 from bobnet_sensors.sensors import Sensors, Sensor
 
 
+async def return_immediately():
+    pass
+
+
 @pytest.fixture(scope='session')
 def private_key():
     with open('tests/fixtures/private-key.pem') as f:
@@ -61,8 +65,8 @@ def mock_mqtt_client(mock_mqtt):
 
 
 @pytest.fixture
-def iotcore_connection(loop, mock_mqtt, private_key):
-    return iotcore.Connection(
+def iotcore_connection(loop, private_key):
+    conn = iotcore.Connection(
         loop,
         'europe-west1',
         'test-project',
@@ -71,6 +75,9 @@ def iotcore_connection(loop, mock_mqtt, private_key):
         private_key,
         './tests/fixtures/roots.pem',
     )
+    # Client is only created on connect so mock it out for tests
+    conn._client = mock.Mock()
+    return conn
 
 
 @pytest.fixture
@@ -78,6 +85,8 @@ def mock_iotcore_conn(loop):
     mock_connection = mock.Mock()
     mock_connection.has_message_event = asyncio.Event(loop=loop)
     mock_connection.new_message_event = asyncio.Event(loop=loop)
+    mock_connection.connect = return_immediately
+    mock_connection._wait_for_connection = return_immediately
 
     return mock_connection
 

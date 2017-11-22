@@ -71,9 +71,19 @@ class Connection:
         self.has_message_event = asyncio.Event(loop=loop)
         self.new_message_event = asyncio.Event(loop=loop)
         self._loop = loop
-        self._client = self._setup_mqtt()
 
     async def connect(self):
+        self._client = mqtt.Client(client_id=self.client_id)
+        self._client.tls_set(ca_certs=self.ca_certs_path)
+
+        self._client.on_connect = self.on_connect
+        self._client.on_disconnect = self.on_disconnect
+        self._client.on_subscribe = self.on_subscribe
+        self._client.on_message = self.on_message
+
+        self._client.username_pw_set(
+            username='unused',
+            password=create_jwt(self.project_id, self.private_key))
         self._client.connect(GOOGLE_MQTT_BRIDGE_HOST, GOOGLE_MQTT_BRIDGE_PORT)
         self._client.loop_start()
 
@@ -94,20 +104,6 @@ class Connection:
         return f'projects/{self.project_id}/locations/{self.region}' + \
             f'/registries/{self.registry_id}/devices/{self.device_id}'
 
-    def _setup_mqtt(self):
-        client = mqtt.Client(client_id=self.client_id)
-        client.username_pw_set(
-            username='unused',
-            password=create_jwt(self.project_id, self.private_key))
-        client.tls_set(ca_certs=self.ca_certs_path)
-
-        client.on_connect = self.on_connect
-        client.on_disconnect = self.on_disconnect
-        client.on_subscribe = self.on_subscribe
-        client.on_message = self.on_message
-
-        return client
-
     def on_connect(self, _client, _userdata, _flags, rc):
         logger.info(
             f'on_connect event received ' +
@@ -121,6 +117,8 @@ class Connection:
             f'({_client}, {_userdata}, {rc})')
         self.connected = False
         self.connect_event.clear()
+        self._client.loop_stop()
+        asyncio.ensure_future(self.connect(), loop=self._loop)
 
     def on_subscribe(self, _client, _userdata, _mid, granted_qos):
         logger.info('on_subscribe event received')
@@ -186,6 +184,7 @@ class IOTCoreClient:
             task = complete.pop()
 
             if task == values_task:
+                await self._client._wait_for_connection()
                 self.send(values_task.result())
             else:
                 values_task.cancel()
