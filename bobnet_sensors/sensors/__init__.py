@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 import asyncio
+import importlib
 import logging
 import re
 
@@ -57,13 +58,21 @@ class Sensors:
         return (sensor for sensor in self._sensors.values())
 
 
+def get_device_class(device):
+    return importlib.import_module(f'.{device}', __package__).Device
+
+
 class Sensor:
     @staticmethod
     def create(name, config):
         config = config.copy()
         device = config.pop('device')
+        # TODO @robyoung remove this compatibility hack
+        if device == 'MCP3008':
+            device = 'mcp3008'
         every = config.pop('every', None)
-        return Sensor(name, every, DEVICE_CLASSES[device](**config))
+        Device = get_device_class(device)
+        return Sensor(name, every, Device(**config))
 
     def __init__(self, name, every, device):
         self._name = name
@@ -122,29 +131,6 @@ class BaseDevice(metaclass=ABCMeta):
 
     def update_config(self, config):
         pass
-
-
-class MCP3008Device(BaseDevice):
-    def __init__(self, channel):
-        self._channel = channel
-        RPi.GPIO.setmode(RPi.GPIO.BCM)
-        self._mcp3008 = MCP3008(
-            channel=self._channel,
-            clock_pin=18,
-            mosi_pin=24, miso_pin=23, select_pin=25
-        )
-
-    @property
-    def value(self):
-        return self._mcp3008.value
-
-    def __repr__(self):
-        return f'<MCP3008Device channel={self._channel}>'
-
-
-DEVICE_CLASSES = {
-    'MCP3008': MCP3008Device,
-}
 
 
 def load_sensors(loop, config):

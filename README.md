@@ -7,11 +7,11 @@ $ bobnet-sensors -c config.yml
 ```yaml
 sensors:
   temperature:
-    device:  MCP3008
+    device:  mcp3008
     channel: 0
     every: 1s
   light:
-    device:  MCP3008
+    device:  mcp3008
     channel: 1
     every: 10s
 

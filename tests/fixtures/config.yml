@@ -1,6 +1,6 @@
 sensors:
     name:
-        type: Blah
+        device: module
         arg:  0
 
 iotcore:

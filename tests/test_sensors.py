@@ -4,8 +4,11 @@ import asyncio
 import pytest
 
 from bobnet_sensors.sensors import (
-    Sensors, Sensor, parse_time, BaseDevice, MCP3008Device
+    Sensors, Sensor, parse_time, BaseDevice,
+    get_device_class
 )
+from bobnet_sensors.sensors.counter import Device as CounterDevice
+from bobnet_sensors.sensors.mcp3008 import Device as MCP3008Device
 
 
 @pytest.mark.parametrize('t,result', [
@@ -16,6 +19,10 @@ from bobnet_sensors.sensors import (
 ])
 def test_parse_time(t, result):
     assert parse_time(t) == result
+
+
+def test_get_device_class():
+    assert get_device_class('counter') == CounterDevice
 
 
 def test_parse_time_failure_raises_value_error():
