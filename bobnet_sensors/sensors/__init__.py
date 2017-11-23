@@ -45,8 +45,9 @@ class Sensors:
         errors = []
         try:
             for name, sensor_config in config['sensors'].items():
-                if name in self._sensors:
-                    ok, message = self._sensors[name].update_config(sensor_config)
+                sensor = self._sensors.get(name)
+                if sensor:
+                    ok, message = sensor.update_config(sensor_config)
                     if not ok:
                         errors.append(message)
         except Exception:

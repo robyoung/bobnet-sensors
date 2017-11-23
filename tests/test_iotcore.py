@@ -152,13 +152,17 @@ def test_on_disconnect_event(mock_mqtt_client, iotcore_connection):
     # arrange
     conn = iotcore_connection
     conn.connect_event = mock.Mock()
+
     async def wait_for_other():
         await asyncio.sleep(0.01)
+
     conn._wait_for_connection = return_immediately
 
     # act
     conn.on_disconnect(None, None, None)
-    conn._loop.run_until_complete(asyncio.gather(wait_for_other(), loop=conn._loop))
+    conn._loop.run_until_complete(
+        asyncio.gather(wait_for_other(), loop=conn._loop)
+    )
 
     # assert
     assert not conn.connected
@@ -221,8 +225,10 @@ def test_publish_message(iotcore_connection):
 def test_load_iotcore(mock_Connection, loop):
     # arrange
     mock_connect = mock.Mock()
+
     async def connect():
         mock_connect()
+
     mock_Connection.from_config.return_value.connect = connect
 
     # act

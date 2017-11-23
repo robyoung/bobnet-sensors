@@ -30,4 +30,3 @@ class Device(BaseDevice):
 
     def __repr__(self):
         return f'<mcp3008.Device channel={self._channel}>'
-

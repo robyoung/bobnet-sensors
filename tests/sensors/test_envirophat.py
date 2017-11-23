@@ -79,6 +79,7 @@ def test_update_config_set_led_on(mock_envirophat):
     assert mock_envirophat.leds.on.called
     assert not mock_envirophat.leds.off.called
 
+
 def test_update_config_set_led_off(mock_envirophat):
     d = EnvirophatDevice(sensor='light.light')
     d.update_config({'leds': 'off'})
