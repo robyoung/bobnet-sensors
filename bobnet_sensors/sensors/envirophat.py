@@ -72,7 +72,7 @@ class Device(BaseDevice):
         ]
         result = {}
         for value in values:
-            result = dict(result, **value)
+            result.update(value)
         return result
 
     def update_config(self, config):
@@ -82,4 +82,4 @@ class Device(BaseDevice):
             envirophat.leds.off()
 
     def __repr__(self):
-        return f'<envirophat.Device>'
+        return f'<envirophat.Device with {len(self.sensors)} sensors>'

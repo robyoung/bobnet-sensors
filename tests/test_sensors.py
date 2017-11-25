@@ -89,10 +89,10 @@ def test_create_sensors_from_config(mock_mcp3008, valid_config):
     sensors = Sensors.from_config(valid_config)
 
     sensors = list(sensors)
-    assert len(sensors) == 2
-    assert sensors[0].name == 'temp'
+    assert len(sensors) == 1
+    assert sensors[0].name == 'mcp3008'
     assert sensors[0].every == 10
-    assert isinstance(sensors[1].device, BaseDevice)
+    assert isinstance(sensors[0].device, BaseDevice)
 
 
 def test_update_config_on_single_sensor():
@@ -129,19 +129,6 @@ def test_update_config_failure():
 
     assert not ok
     assert error == 'bad thing'
-
-
-def test_read_value_from_mcp3008(mock_mcp3008, mock_RPi):
-    mock_mcp3008.return_value.value = 'value'
-    mock_RPi.GPIO.BCM = 'bcm'
-
-    device = MCP3008Device(1)
-
-    assert device.value == 'value'
-    mock_RPi.GPIO.setmode.assert_called_with('bcm')
-    mock_mcp3008.assert_called_with(
-        channel=1, clock_pin=18,
-        mosi_pin=24, miso_pin=23, select_pin=25)
 
 
 def test_sensor_run(loop):

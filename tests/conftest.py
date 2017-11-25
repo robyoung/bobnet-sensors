@@ -31,16 +31,14 @@ def stop(loop):
 def valid_config():
     return {
         'sensors': {
-            'temp': {
-                'device': 'MCP3008',
+            'mcp3008': {
+                'device': 'mcp3008',
                 'every': '10s',
-                'channel': 0,
+                'channels': [
+                    {'channel': 0, 'label': 'temp'},
+                    {'channel': 1, 'label': 'light'}
+                ]
             },
-            'light': {
-                'device': 'MCP3008',
-                'every': '30s',
-                'channel': 1,
-            }
         },
         'iotcore': {
             'region': 'europe-west1',
