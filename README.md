@@ -42,6 +42,37 @@ Interface to IoT core
 
 The sensor library
 
+### Devices
+
+#### MCP3008
+
+#### Enviro-pHat
+
+sensor config
+```
+sensors:
+  temperature:
+    device: envirophat
+    sensors:
+      - light.rgb
+      - sensor: light.light
+        label: light
+      - weather.temperature
+      - weather.pressure
+      - weather.altitude
+    sensor: light.rgb
+    every: 30s
+```
+
+update config
+```
+leds: on
+```
+or
+```
+leds: off
+```
+
 ## main
 
 The main loop

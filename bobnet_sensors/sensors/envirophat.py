@@ -1,3 +1,4 @@
+import functools
 import logging
 
 from . import BaseDevice
@@ -11,11 +12,23 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+@functools.singledispatch
 def read_sensor_value(sensor):
     module, method = sensor.split('.')
-    return getattr(getattr(envirophat, module), method)()
+    return {
+        sensor: getattr(getattr(envirophat, module), method)()
+    }
 
 
+@read_sensor_value.register(dict)
+def _(sensor):
+    name = sensor['sensor']
+    label = sensor['label']
+
+    return {label: read_sensor_value(name)[name]}
+
+
+@functools.singledispatch
 def validate_sensor(sensor):
     allowed = {
         'light': ['rgb', 'light'],
@@ -35,6 +48,13 @@ def validate_sensor(sensor):
         raise ValueError
 
 
+@validate_sensor.register(dict)
+def _(sensor):
+    validate_sensor(sensor.get('sensor'))
+    if not isinstance(sensor.get('label'), str):
+        raise ValueError
+
+
 class Device(BaseDevice):
     def __init__(self, sensor=None, sensors=None):
         if sensor is not None:
@@ -47,13 +67,13 @@ class Device(BaseDevice):
 
     @property
     def value(self):
-        if len(self.sensors) == 1:
-            return read_sensor_value(self.sensors[0])
-        else:
-            return {
-                sensor: read_sensor_value(sensor)
-                for sensor in self.sensors
-            }
+        values = [
+            read_sensor_value(sensor) for sensor in self.sensors
+        ]
+        result = {}
+        for value in values:
+            result = dict(result, **value)
+        return result
 
     def update_config(self, config):
         if config.get('leds') == 'on':
