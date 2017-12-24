@@ -1,12 +1,15 @@
 import functools
 import logging
 
+import bobnet_sensors
 from . import BaseDevice
 
 try:
     import envirophat
 except ImportError:
     # dummies for unit testing
+    if not bobnet_sensors.TESTING:
+        raise
     envirophat = None
 
 logger = logging.getLogger(__name__)

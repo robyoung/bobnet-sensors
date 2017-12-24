@@ -1,5 +1,6 @@
 import logging
 
+import bobnet_sensors
 from . import BaseDevice
 
 try:
@@ -7,6 +8,8 @@ try:
     import RPi
 except ImportError:
     # dummies for unit testing
+    if not bobnet_sensors.TESTING:
+        raise
     MCP3008 = None
     RPi = None
 

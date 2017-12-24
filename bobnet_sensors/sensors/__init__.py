@@ -4,11 +4,15 @@ import importlib
 import logging
 import re
 
+import bobnet_sensors
+
 try:
     from gpiozero import MCP3008
     import RPi
 except ImportError:
     # dummies for unit testing
+    if not bobnet_sensors.TESTING:
+        raise
     MCP3008 = None
     RPi = None
 
