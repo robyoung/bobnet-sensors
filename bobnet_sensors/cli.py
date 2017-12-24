@@ -11,7 +11,9 @@ from .main import run
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Run a BobNet sensor')
-    parser.add_argument('-c', '--config', dest='config')
+    parser.add_argument('-c', '--config',
+                        dest='config',
+                        default='/etc/bobnet/sensors-config.yml')
     parser.add_argument('-l', '--log-level',
                         help='Log level',
                         choices=['ERROR', 'WARNING', 'INFO', 'DEBUG'],

@@ -100,7 +100,7 @@ def test_create_connection_from_config(
     loop, mock_mqtt, valid_config, private_key
 ):
     # act
-    conn = iotcore.Connection.from_config(loop, valid_config)
+    conn = iotcore.Connection.from_config(valid_config)
 
     # assert
     assert conn.region == 'europe-west1'
@@ -115,58 +115,49 @@ def test_create_connection_from_config_fails_on_missing_keys(
 
     # act and assert
     with pytest.raises(KeyError):
-        iotcore.Connection.from_config(loop, valid_config)
+        iotcore.Connection.from_config(valid_config)
 
 
-def test_connection_connect(loop, mock_mqtt_client, iotcore_connection):
+def test_connection_connect(mock_mqtt_client, iotcore_connection):
     # arrange
     conn = iotcore_connection
-    connect_event = asyncio.Event(loop=loop)
-    connect_event.set()
-    conn.connect_event = connect_event
 
     # act
-    loop.run_until_complete(asyncio.gather(conn.connect(), loop=loop))
+    conn.connect()
 
     # assert
     assert mock_mqtt_client.connect.called
     assert mock_mqtt_client.loop_start.called
-    mock_mqtt_client.subscribe.assert_called_with('/devices/test01/config',
-                                                  qos=1)
+    assert not mock_mqtt_client.subscribe.called
 
 
 def test_on_connect_event(iotcore_connection):
     # arrange
     conn = iotcore_connection
-    conn.connect_event = mock.Mock()
 
     # act
     conn.on_connect(None, None, None, None)
 
     # assert
+    conn._client.subscribe.assert_called_with('/devices/test01/config',
+                                              qos=1)
     assert conn.connected
-    assert conn.connect_event.set.called
+    assert conn.connect_event.is_set()
 
 
 def test_on_disconnect_event(mock_mqtt_client, iotcore_connection):
     # arrange
     conn = iotcore_connection
-    conn.connect_event = mock.Mock()
-
-    async def wait_for_other():
-        await asyncio.sleep(0.01)
-
-    conn._wait_for_connection = return_immediately
+    conn.connect_event.set()
+    mock_client = conn._client
 
     # act
     conn.on_disconnect(None, None, None)
-    conn._loop.run_until_complete(
-        asyncio.gather(wait_for_other(), loop=conn._loop)
-    )
 
     # assert
     assert not conn.connected
-    assert conn.connect_event.clear.called
+    assert not conn.connect_event.is_set()
+    assert mock_client.loop_stop.called
 
 
 def test_on_subscribe_fails_on_qos_failure(iotcore_connection):
@@ -181,7 +172,7 @@ def test_on_subscribe_fails_on_qos_failure(iotcore_connection):
 Message = namedtuple('Message', 'payload')
 
 
-def test_on_message_sets_message(iotcore_connection):
+def test_on_message_sends_message(mock_on_message, iotcore_connection):
     # arrange
     conn = iotcore_connection
     message = Message('{"foo": "bar"}'.encode('utf8'))
@@ -190,12 +181,13 @@ def test_on_message_sets_message(iotcore_connection):
     conn.on_message(None, None, message)
 
     # assert
-    assert conn.message == {'foo': 'bar'}
-    assert conn.has_message_event.is_set()
-    assert conn.new_message_event.is_set()
+    called_message = mock_on_message.call_args[0][0]
+    assert called_message == {'foo': 'bar'}
 
 
-def test_on_message_sets_no_message_if_no_payload(iotcore_connection):
+def test_on_message_sends_no_message_if_no_payload(
+    mock_on_message, iotcore_connection
+):
     # arrange
     conn = iotcore_connection
     message = Message(''.encode('utf8'))
@@ -204,13 +196,13 @@ def test_on_message_sets_no_message_if_no_payload(iotcore_connection):
     conn.on_message(None, None, message)
 
     # assert
-    assert not conn.has_message_event.is_set()
-    assert not conn.new_message_event.is_set()
+    assert not mock_on_message.called
 
 
 def test_publish_message(iotcore_connection):
     # arrange
     conn = iotcore_connection
+    conn.connect_event.set()
 
     # act
     conn.publish({'foo': 'bar'})
@@ -226,17 +218,13 @@ def test_load_iotcore(mock_Connection, loop):
     # arrange
     mock_connect = mock.Mock()
 
-    async def connect():
-        mock_connect()
-
-    mock_Connection.from_config.return_value.connect = connect
+    mock_Connection.from_config.return_value.connect = mock_connect
 
     # act
     client = iotcore.load_iotcore(loop, {})
-    client.send('message')
 
     # assert
-    assert mock_connect.called
+    assert client._client == mock_Connection.from_config.return_value
 
 
 def test_run_send_stop_no_value(loop):
@@ -286,46 +274,16 @@ def test_run_send_value_then_stop(loop):
     mock_client.publish.assert_called_with('test value')
 
 
-def test_run_config_stop_no_config(loop):
-    stop = asyncio.Event(loop=loop)
-    target = mock.Mock()
-
+def test_setup_config_handler():
+    # arrange
+    mock_target = mock.Mock()
+    mock_target.update_config.return_value = (True, None)
     mock_client = mock.Mock()
-    mock_client.new_message_event = asyncio.Event(loop=loop)
     client = iotcore.IOTCoreClient(mock_client)
 
-    async def test_task(stop, mock_client):
-        stop.set()
+    # act
+    client.setup_config_handler(mock_target)
+    client._client.on_message_callback('foobar')
 
-    loop.run_until_complete(
-        asyncio.gather(
-            client.run_config(loop, stop, target),
-            test_task(stop, mock_client),
-            loop=loop
-        )
-    )
-
-    assert not target.update_config.called
-
-
-def test_run_config_with_config_then_stop(loop, iotcore_client):
-    stop = asyncio.Event(loop=loop)
-    target = mock.Mock()
-    target.update_config.return_value = (True, '')
-
-    iotcore_client._client.message = 'test message'
-
-    async def test_task(stop, mock_client):
-        mock_client.new_message_event.set()
-        await asyncio.sleep(0.01)
-        stop.set()
-
-    loop.run_until_complete(
-        asyncio.gather(
-            iotcore_client.run_config(loop, stop, target),
-            test_task(stop, iotcore_client._client),
-            loop=loop
-        )
-    )
-
-    target.update_config.assert_called_with('test message')
+    # assert
+    mock_target.update_config.assert_called_with('foobar')

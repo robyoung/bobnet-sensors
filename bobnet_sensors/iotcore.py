@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import os
+import threading
 import urllib.request
 
 import paho.mqtt.client as mqtt
@@ -35,6 +36,8 @@ def load_ca_certs(ca_certs_path):
                 data = u.read().decode('utf-8')
                 f.write(data)
 
+    return ca_certs_path
+
 
 def create_jwt(project_id, private_key):
     token = {
@@ -47,32 +50,30 @@ def create_jwt(project_id, private_key):
 
 class Connection:
     @staticmethod
-    def from_config(loop, config):
+    def from_config(config):
         iot = config['iotcore']
 
         return Connection(
-            loop,
             iot['region'], iot['project_id'],
             iot['registry_id'], iot['device_id'],
             load_private_key(iot),
             load_ca_certs(iot['ca_certs_path']))
 
-    def __init__(self, loop, region, project_id, registry_id, device_id,
-                 private_key, ca_certs_path):
+    def __init__(self, region, project_id, registry_id, device_id,
+                 private_key, ca_certs_path, on_message=None):
         self.region = region
         self.project_id = project_id
         self.registry_id = registry_id
         self.device_id = device_id
         self.private_key = private_key
         self.ca_certs_path = ca_certs_path
+        self.on_message_callback = on_message
 
         self.connected = False
-        self.connect_event = asyncio.Event(loop=loop)
-        self.has_message_event = asyncio.Event(loop=loop)
-        self.new_message_event = asyncio.Event(loop=loop)
-        self._loop = loop
+        self.connect_event = threading.Event()
+        self._message = None
 
-    async def connect(self):
+    def connect(self):
         self._client = mqtt.Client(client_id=self.client_id)
         self._client.tls_set(ca_certs=self.ca_certs_path)
 
@@ -86,10 +87,6 @@ class Connection:
             password=create_jwt(self.project_id, self.private_key))
         self._client.connect(GOOGLE_MQTT_BRIDGE_HOST, GOOGLE_MQTT_BRIDGE_PORT)
         self._client.loop_start()
-
-        await self._wait_for_connection()
-
-        self._client.subscribe(self.config_topic, qos=1)
 
     @property
     def config_topic(self):
@@ -105,51 +102,45 @@ class Connection:
             f'/registries/{self.registry_id}/devices/{self.device_id}'
 
     def on_connect(self, _client, _userdata, _flags, rc):
-        logger.info(
-            f'on_connect event received ' +
-            f'({_client}, {_userdata}, {_flags}, {rc})')
+        self._client.subscribe(self.config_topic, qos=1)
         self.connected = True
         self.connect_event.set()
+        logger.info('connected')
 
     def on_disconnect(self, _client, _userdata, rc):
-        logger.info(
-            'on_disconnect event received' +
-            f'({_client}, {_userdata}, {rc})')
+        logger.info('reconnecting')
         self.connected = False
         self.connect_event.clear()
         self._client.loop_stop()
-        asyncio.ensure_future(self.connect(), loop=self._loop)
+        self.connect()
 
     def on_subscribe(self, _client, _userdata, _mid, granted_qos):
-        logger.info('on_subscribe event received')
         if granted_qos[0] == 128:
             raise RuntimeError('Subscription failed')
 
     def on_message(self, _client, _userdata, message):
-        logger.info('on_message event received')
+        logger.info(f'on_message event received')
         payload = message.payload.decode('utf8')
         if payload:
             logger.debug(f'on_message payload {payload}')
             payload = json.loads(payload)
-            self._message = payload  # only the most recent is relevant
-            self.has_message_event.set()
-            self.new_message_event.set()
+            if self.on_message_callback:
+                # TODO: raise on error
+                self.on_message_callback(payload)
 
     @property
     def message(self):
-        self.has_message_event.wait()
         return self._message
 
     def publish(self, message):
+        self.wait_for_connection()
         return self._client.publish(
             self.events_topic, json.dumps(message), qos=1
         )
 
-    async def _wait_for_connection(self):
-        try:
-            await asyncio.wait_for(
-                self.connect_event.wait(), 5, loop=self._loop)
-        except asyncio.TimeoutError:
+    def wait_for_connection(self):
+        result = self.connect_event.wait(5.0)
+        if not result:
             raise RuntimeError('Could not connect to MQTT bridge')
 
 
@@ -157,21 +148,12 @@ class IOTCoreClient:
     def __init__(self, client):
         self._client = client
 
+    def start(self):
+        self._client.connect()
+        self._client.wait_for_connection()
+
     def send(self, message):
         return self._client.publish(message)
-
-    @property
-    def has_new_config(self):
-        return self._client.new_message_event.is_set()
-
-    @property
-    def new_config_event(self):
-        return self._client.new_message_event
-
-    @property
-    def config(self):
-        self._client.new_message_event.clear()
-        return self._client.message
 
     async def run_send(self, loop, stop, values):
         while not stop.is_set():
@@ -184,36 +166,22 @@ class IOTCoreClient:
             task = complete.pop()
 
             if task == values_task:
-                await self._client._wait_for_connection()
                 self.send(values_task.result())
+                stop_task.cancel()
             else:
                 values_task.cancel()
 
-    async def run_config(self, loop, stop, target):
-        """Read config from IoT Core and send to target"""
-        while not stop.is_set():
-            # wait for either new config event or stop event
-            stop_task = loop.create_task(stop.wait())
-            message_event_task = loop.create_task(
-                self._client.new_message_event.wait())
+    def setup_config_handler(self, target):
+        def on_message(message):
+            ok, errors = target.update_config(message)
+            if not ok:
+                logger.error(f'config update errors {errors}')
+            return ok
 
-            await asyncio.wait(
-                [stop_task, message_event_task],
-                loop=loop, return_when=asyncio.FIRST_COMPLETED)
-
-            # it may be the stop event so check
-            if not stop.is_set():
-                stop_task.cancel()
-                ok, errors = target.update_config(self.config)
-                if not ok:
-                    # TODO @robyoung report back to iot-core
-                    print("Received errors")
-            else:
-                message_event_task.cancel()
+        self._client.on_message_callback = on_message
 
 
 def load_iotcore(loop, config):
-    conn = Connection.from_config(loop, config)
-    loop.run_until_complete(asyncio.gather(conn.connect(), loop=loop))
+    conn = Connection.from_config(config)
 
     return IOTCoreClient(conn)
