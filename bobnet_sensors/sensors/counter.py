@@ -9,7 +9,7 @@ class Device(BaseDevice):
     def value(self):
         v = self._count
         self._count += 1
-        return v
+        return {'count': v}
 
     def __repr__(self):
         return f'<counter.Device count={self._count}>'
