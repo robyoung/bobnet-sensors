@@ -4,11 +4,10 @@ from unittest import mock
 import pytest
 
 import bobnet_sensors
-from bobnet_sensors import iotcore
-from bobnet_sensors.sensors import Sensors, Sensor
-
-
 bobnet_sensors.TESTING = True
+
+from bobnet_sensors import iotcore  # noqa
+from bobnet_sensors.sensors import Sensors, Sensor  # noqa
 
 
 async def return_immediately():

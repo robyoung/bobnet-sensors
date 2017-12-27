@@ -12,4 +12,4 @@ class Device(BaseDevice):
         return v
 
     def __repr__(self):
-        return f'<counter.Device count={self.value}>'
+        return f'<counter.Device count={self._count}>'
