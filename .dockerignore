@@ -1,0 +1,6 @@
+/.git
+/.eggs
+/.coverage
+/.cache
+/.ropeproject
+/dist
