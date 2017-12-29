@@ -89,10 +89,6 @@ def iotcore_connection(mock_on_message, private_key):
 @pytest.fixture
 def mock_iotcore_conn(loop):
     mock_connection = mock.Mock()
-    mock_connection.has_message_event = asyncio.Event(loop=loop)
-    mock_connection.new_message_event = asyncio.Event(loop=loop)
-    mock_connection.connect = return_immediately
-    mock_connection._wait_for_connection = return_immediately
 
     return mock_connection
 
