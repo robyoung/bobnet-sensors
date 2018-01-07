@@ -109,19 +109,16 @@ class Sensor:
         except Exception as e:
             return (False, str(e))
 
-    async def run(self, loop, stop, values):
+    async def run(self, looper):
         logger.debug(f'Starting {self}')
-        while not stop.is_set():
+        while not looper.stopping:
             value = {
                 'sensor': self.name,
                 'value': self.device.value,
             }
-            await values.put(value)
+            await looper.send_queue.put(value)
             logger.debug(f'Sent value {value}')
-            try:
-                await asyncio.wait_for(stop.wait(), self.every, loop=loop)
-            except asyncio.TimeoutError:
-                pass
+            await looper.wait_for(self.every)
         logger.debug(f'Stopping {self}')
 
     def __repr__(self):
@@ -138,5 +135,5 @@ class BaseDevice(metaclass=ABCMeta):
         pass
 
 
-def load_sensors(loop, config):
+def load_sensors(config):
     return Sensors.from_config(config)

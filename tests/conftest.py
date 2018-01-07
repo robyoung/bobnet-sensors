@@ -6,8 +6,9 @@ import pytest
 import bobnet_sensors
 bobnet_sensors.TESTING = True
 
-from bobnet_sensors import iotcore  # noqa
-from bobnet_sensors.sensors import Sensors, Sensor  # noqa
+from bobnet_sensors import iotcore  # noqa: E402
+from bobnet_sensors.sensors import Sensors, Sensor  # noqa: E402
+from bobnet_sensors.async_helper import Looper  # noqa: E402
 
 
 async def return_immediately():
@@ -22,7 +23,14 @@ def private_key():
 
 @pytest.fixture
 def loop():
-    return asyncio.new_event_loop()
+    the_loop = asyncio.new_event_loop()
+    yield the_loop
+    the_loop.close()
+
+
+@pytest.fixture
+def looper(loop):
+    return Looper(loop)
 
 
 @pytest.fixture

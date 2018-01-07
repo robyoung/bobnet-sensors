@@ -6,6 +6,7 @@ from .config import load_config
 from .iotcore import load_iotcore
 from .sensors import load_sensors
 from .main import run
+from .async_helper import Looper
 
 
 def parse_args():
@@ -35,9 +36,8 @@ def main():
 
     set_up_logging(args.log_level)
 
-    loop = asyncio.new_event_loop()
-    stop = asyncio.Event(loop=loop)
-    iotcore = load_iotcore(loop, c)
-    sensors = load_sensors(loop, c)
+    looper = Looper(asyncio.new_event_loop())
+    iotcore = load_iotcore(c)
+    sensors = load_sensors(c)
 
-    run(loop, stop, iotcore, sensors)
+    run(looper, iotcore, sensors)

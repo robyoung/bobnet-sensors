@@ -131,22 +131,19 @@ def test_update_config_failure():
     assert error == 'bad thing'
 
 
-def test_sensor_run(loop):
-    stop = asyncio.Event(loop=loop)
-    values = asyncio.Queue(loop=loop)
-
-    async def test_task(stop, values):
-        value = await values.get()
-        stop.set()
+def test_sensor_run(looper):
+    async def do_task(looper):
+        value = await looper.send_queue.get()
+        looper.stop()
         return value
 
     sensor = Sensor('name', '10s', mock.Mock())
 
-    results = loop.run_until_complete(
+    results = looper.loop.run_until_complete(
         asyncio.gather(
-            sensor.run(loop, stop, values),
-            test_task(stop, values),
-            loop=loop
+            sensor.run(looper),
+            do_task(looper),
+            loop=looper.loop
         )
     )
 

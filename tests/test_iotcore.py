@@ -214,60 +214,54 @@ def test_publish_message(iotcore_connection):
 
 
 @mock.patch('bobnet_sensors.iotcore.Connection')
-def test_load_iotcore(mock_Connection, loop):
+def test_load_iotcore(mock_Connection):
     # arrange
     mock_connect = mock.Mock()
 
     mock_Connection.from_config.return_value.connect = mock_connect
 
     # act
-    client = iotcore.load_iotcore(loop, {})
+    client = iotcore.load_iotcore({})
 
     # assert
     assert client._client == mock_Connection.from_config.return_value
 
 
-def test_run_send_stop_no_value(loop):
-    stop = asyncio.Event(loop=loop)
-    values = asyncio.Queue(loop=loop)
-
-    async def test_task(stop, values):
-        stop.set()
+def test_run_send_stop_no_value(looper):
+    async def do_task(looper):
+        looper.stop()
 
     mock_client = mock.Mock()
 
     client = iotcore.IOTCoreClient(mock_client)
 
-    loop.run_until_complete(
+    looper.loop.run_until_complete(
         asyncio.gather(
-            client.run_send(loop, stop, values),
-            test_task(stop, values),
-            loop=loop
+            client.run_send(looper),
+            do_task(looper),
+            loop=looper.loop
         )
     )
 
     assert not mock_client.publish.called
 
 
-def test_run_send_value_then_stop(loop):
-    stop = asyncio.Event(loop=loop)
-    values = asyncio.Queue(loop=loop)
-
-    async def test_task(stop, values):
-        await values.put('test value')
+def test_run_send_value_then_stop(looper):
+    async def do_task(looper):
+        await looper.send_queue.put('test value')
         await asyncio.sleep(0.0001)
-        stop.set()
+        looper.stop()
 
     mock_client = mock.Mock()
     mock_client._wait_for_connection = return_immediately
 
     client = iotcore.IOTCoreClient(mock_client)
 
-    loop.run_until_complete(
+    looper.loop.run_until_complete(
         asyncio.gather(
-            client.run_send(loop, stop, values),
-            test_task(stop, values),
-            loop=loop
+            client.run_send(looper),
+            do_task(looper),
+            loop=looper.loop
         )
     )
 

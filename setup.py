@@ -18,6 +18,7 @@ install_requires = [
     'paho-mqtt==1.3.1',
     'pyjwt==1.5.3',
     'cryptography==2.1.3',
+    'janus==0.3.0',
 ]
 
 extras_require = {

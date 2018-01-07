@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import json
 import logging
@@ -155,21 +154,11 @@ class IOTCoreClient:
     def send(self, message):
         return self._client.publish(message)
 
-    async def run_send(self, loop, stop, values):
-        while not stop.is_set():
-            values_task = loop.create_task(values.get())
-            stop_task = loop.create_task(stop.wait())
-
-            complete, pending = await asyncio.wait(
-                [values_task, stop_task],
-                loop=loop, return_when=asyncio.FIRST_COMPLETED)
-            task = complete.pop()
-
-            if task == values_task:
-                self.send(values_task.result())
-                stop_task.cancel()
-            else:
-                values_task.cancel()
+    async def run_send(self, looper):
+        while not looper.stopping:
+            value = await looper.send_queue.get()
+            if value:
+                self.send(value)
 
     def setup_config_handler(self, target):
         def on_message(message):
@@ -181,7 +170,7 @@ class IOTCoreClient:
         self._client.on_message_callback = on_message
 
 
-def load_iotcore(loop, config):
+def load_iotcore(config):
     conn = Connection.from_config(config)
 
     return IOTCoreClient(conn)
