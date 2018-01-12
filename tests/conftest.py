@@ -74,20 +74,15 @@ def mock_mqtt_client(mock_mqtt):
 
 
 @pytest.fixture
-def mock_on_message():
-    yield mock.Mock()
-
-
-@pytest.fixture
-def iotcore_connection(mock_on_message, private_key):
+def iotcore_connection(looper, private_key):
     conn = iotcore.Connection(
+        looper,
         'europe-west1',
         'test-project',
         'test-registry',
         'test01',
         private_key,
         './tests/fixtures/roots.pem',
-        mock_on_message,
     )
     # Client is only created on connect so mock it out for tests
     conn._client = mock.Mock()

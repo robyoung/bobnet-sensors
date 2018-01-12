@@ -49,24 +49,25 @@ def create_jwt(project_id, private_key):
 
 class Connection:
     @staticmethod
-    def from_config(config):
+    def from_config(looper, config):
         iot = config['iotcore']
 
         return Connection(
+            looper,
             iot['region'], iot['project_id'],
             iot['registry_id'], iot['device_id'],
             load_private_key(iot),
             load_ca_certs(iot['ca_certs_path']))
 
-    def __init__(self, region, project_id, registry_id, device_id,
-                 private_key, ca_certs_path, on_message=None):
+    def __init__(self, looper, region, project_id, registry_id, device_id,
+                 private_key, ca_certs_path):
+        self.looper = looper
         self.region = region
         self.project_id = project_id
         self.registry_id = registry_id
         self.device_id = device_id
         self.private_key = private_key
         self.ca_certs_path = ca_certs_path
-        self.on_message_callback = on_message
 
         self.connected = False
         self.connect_event = threading.Event()
@@ -123,9 +124,7 @@ class Connection:
         if payload:
             logger.debug(f'on_message payload {payload}')
             payload = json.loads(payload)
-            if self.on_message_callback:
-                # TODO: raise on error
-                self.on_message_callback(payload)
+            self.looper.config_queue.sync_put(payload)
 
     @property
     def message(self):
@@ -160,17 +159,8 @@ class IOTCoreClient:
             if value:
                 self.send(value)
 
-    def setup_config_handler(self, target):
-        def on_message(message):
-            ok, errors = target.update_config(message)
-            if not ok:
-                logger.error(f'config update errors {errors}')
-            return ok
 
-        self._client.on_message_callback = on_message
-
-
-def load_iotcore(config):
-    conn = Connection.from_config(config)
+def load_iotcore(looper, config):
+    conn = Connection.from_config(looper, config)
 
     return IOTCoreClient(conn)

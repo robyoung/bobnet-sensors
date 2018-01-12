@@ -1,5 +1,4 @@
 from abc import ABCMeta, abstractmethod
-import asyncio
 import importlib
 import logging
 import re
@@ -44,6 +43,16 @@ class Sensors:
 
     def __init__(self, sensors):
         self._sensors = sensors
+
+    async def run_update_config(self, looper):
+        while not looper.stopping:
+            config = await looper.config_queue.get()
+            if config:
+                ok, errors = self.update_config(config)
+                if not ok:
+                    # TODO: send these errors back up
+                    for error in errors:
+                        logger.error(error)
 
     def update_config(self, config):
         errors = []
