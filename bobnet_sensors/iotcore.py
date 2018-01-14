@@ -8,6 +8,8 @@ import urllib.request
 import paho.mqtt.client as mqtt
 import jwt
 
+from .models import ConfigMessage, CommandMessage
+
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +73,6 @@ class Connection:
 
         self.connected = False
         self.connect_event = threading.Event()
-        self._message = None
 
     def connect(self):
         self._client = mqtt.Client(client_id=self.client_id)
@@ -118,17 +119,21 @@ class Connection:
         if granted_qos[0] == 128:
             raise RuntimeError('Subscription failed')
 
-    def on_message(self, _client, _userdata, message):
+    def on_message(self, _client, _userdata, iotcore_message):
         logger.info(f'on_message event received')
-        payload = message.payload.decode('utf8')
+        payload = iotcore_message.payload.decode('utf8')
         if payload:
             logger.debug(f'on_message payload {payload}')
             payload = json.loads(payload)
-            self.looper.config_queue.sync_put(payload)
+            for message in self.parse_config_message(payload):
+                self.looper.config_queue.sync_put(message)
 
-    @property
-    def message(self):
-        return self._message
+    def parse_config_message(self, message):
+        for device, config in message.get('devices', {}).items():
+            yield ConfigMessage(device, config)
+
+        for device, command in message.get('commands', {}).items():
+            yield CommandMessage.from_dict(device, command)
 
     def publish(self, message):
         self.wait_for_connection()

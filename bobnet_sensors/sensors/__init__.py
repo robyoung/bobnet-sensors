@@ -1,9 +1,14 @@
 from abc import ABCMeta, abstractmethod
+import asyncio
 import importlib
 import logging
 import re
 
 import bobnet_sensors
+from ..models import (
+    ConfigMessage, CommandMessage, LogMessage
+)
+
 
 try:
     from gpiozero import MCP3008
@@ -46,27 +51,48 @@ class Sensors:
 
     async def run_update_config(self, looper):
         while not looper.stopping:
-            config = await looper.config_queue.get()
-            if config:
-                ok, errors = self.update_config(config)
-                if not ok:
-                    # TODO: send these errors back up
-                    for error in errors:
-                        logger.error(error)
+            message = await looper.config_queue.get()
+            for response in self.apply_control_message(looper, message):
+                await looper.send_queue.put(response)
 
-    def update_config(self, config):
-        errors = []
-        try:
-            for name, sensor_config in config['sensors'].items():
-                sensor = self._sensors.get(name)
-                if sensor:
-                    ok, message = sensor.update_config(sensor_config)
-                    if not ok:
-                        errors.append(message)
-        except Exception:
-            errors.append('Invalid config')
+    def apply_control_message(self, looper, message):
+        # TODO: flatten this out
+        if isinstance(message, ConfigMessage):
+            yield from self.apply_config_message(looper, message)
+        elif isinstance(message, CommandMessage):
+            yield from self.apply_command_message(looper, message)
+        else:
+            yield LogMessage.error(f'Invalid control message {message}')
 
-        return (not bool(errors), errors)
+    def apply_config_message(self, looper, config):
+        device = self._sensors.get(config.device)
+        if not device:
+            yield LogMessage.error(
+                f'Unknown device in config {config.device}'
+            )
+        else:
+            ok, error = device.update_config(config.config)
+            if not ok:
+                yield LogMessage.error(
+                    f'Config error on {config.device}: {error}'
+                )
+
+    def apply_command_message(self, looper, command):
+        device = self._sensors.get(command.device)
+        if not device:
+            yield LogMessage.error(
+                f'Unknown device in command {command.device}'
+            )
+        elif not hasattr(device, 'run_command'):
+            yield LogMessage.error(
+                f'Device {command.device} has no run_command'
+            )
+        elif command.should_run:
+            asyncio.ensure_future(
+                device.run_command(looper),
+                loop=looper.loop
+            )
+            yield command.ack()
 
     def __iter__(self):
         return (sensor for sensor in self._sensors.values())
@@ -81,9 +107,6 @@ class Sensor:
     def create(name, config):
         config = config.copy()
         device = config.pop('device')
-        # TODO @robyoung remove this compatibility hack
-        if device == 'MCP3008':
-            device = 'mcp3008'
         every = config.pop('every', None)
         Device = get_device_class(device)
         return Sensor(name, every, Device(**config))

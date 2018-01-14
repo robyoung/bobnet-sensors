@@ -1,11 +1,14 @@
 import asyncio
 from unittest import mock
 from collections import namedtuple
+import json
 
 import pytest
 import jwt
 
 from bobnet_sensors import iotcore
+from bobnet_sensors.models import ConfigMessage, CommandMessage
+
 from conftest import return_immediately
 
 
@@ -172,31 +175,55 @@ def test_on_subscribe_fails_on_qos_failure(iotcore_connection):
 Message = namedtuple('Message', 'payload')
 
 
-def test_on_message_sends_message(looper, iotcore_connection):
+@pytest.mark.parametrize('payload,expected_messages', [
+    (
+        {'devices': {'mydevice': {'foo': 'bar'}}},
+        [ConfigMessage('mydevice', {'foo': 'bar'}), None]
+    ),
+    (
+        {'commands': {'mydevice': {'id': 1,
+                                   'state': 'new'}}},
+        [CommandMessage('mydevice', 1, 'new', None), None]
+    ),
+    (
+        {'devices': {'mydevice': {'foo': 'bar'}},
+         'commands': {'mydevice': {'id': 1,
+                                   'state': 'new'}}},
+        [
+            ConfigMessage('mydevice', {'foo': 'bar'}),
+            CommandMessage('mydevice', 1, 'new', None),
+            None,
+        ]
+    )
+])
+def test_on_message_sends_messages(
+    payload, expected_messages, looper, iotcore_connection
+):
     # arrange
     conn = iotcore_connection
-    message = Message('{"foo": "bar"}'.encode('utf8'))
+    message = Message(json.dumps(payload).encode('utf8'))
     answers = []
 
-    async def get_message():
-        answers.append(await looper.config_queue.get())
+    async def get_messages():
+        while not looper.stopping:
+            answers.append(await looper.config_queue.get())
 
     async def put_message():
         conn.on_message(None, None, message)
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.01)
         looper.stop()
 
     # act
     looper.loop.run_until_complete(
         asyncio.gather(
-            get_message(),
+            get_messages(),
             put_message(),
             loop=looper.loop
         )
     )
 
     # assert
-    assert answers == [{'foo': 'bar'}]
+    assert answers == expected_messages
 
 
 def test_on_message_sends_no_message_if_no_payload(

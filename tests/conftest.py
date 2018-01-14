@@ -1,5 +1,6 @@
 import asyncio
 from unittest import mock
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -15,6 +16,25 @@ async def return_immediately():
     pass
 
 
+async def sleep_short():
+    await asyncio.sleep(0.001)
+
+
+class roughly:
+    def __init__(self, target, slop=None):
+        self.target = target
+        self.slop = slop or self._default_slop(target)
+
+    @staticmethod
+    def _default_slop(target):
+        if isinstance(target, datetime):
+            return timedelta(seconds=10)
+        raise TypeError('target not supported')
+
+    def __eq__(self, other):
+        return self.target - self.slop < other < self.target + self.slop
+
+
 @pytest.fixture(scope='session')
 def private_key():
     with open('tests/fixtures/private-key.pem') as f:
@@ -25,6 +45,7 @@ def private_key():
 def loop():
     the_loop = asyncio.new_event_loop()
     yield the_loop
+    the_loop.run_until_complete(the_loop.shutdown_asyncgens())
     the_loop.close()
 
 
@@ -101,12 +122,18 @@ def iotcore_client(mock_iotcore_conn):
     return iotcore.IOTCoreClient(mock_iotcore_conn)
 
 
+class AsyncMock(mock.MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+
 @pytest.fixture
 def mock_sensor_set():
     mock_sensors = {}
     for i in range(1, 3):
         mock_sensor = mock.Mock()
         mock_sensor.update_config.return_value = (True, '')
+        mock_sensor.run_command = AsyncMock()
         mock_sensors[f'sensor{i}'] = mock_sensor
     return mock_sensors
 
